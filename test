@@ -1,0 +1,511 @@
+-- Bed Hub(universal)
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+
+local Window = Fluent:CreateWindow({
+    Title = "Bed Hub" .. Fluent.Version,
+    SubTitle = "by BED_Player104",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Darker",
+    MinimizeKey = Enum.KeyCode.LeftControl
+})
+
+local Tabs = {
+    Main = Window:AddTab({ Title = "Main", Icon = "" }),
+    Visual = Window:AddTab({ Title = "Visual", Icon = "eye" }),
+    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+}
+
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
+SaveManager:SetLibrary(Fluent)
+InterfaceManager:SetLibrary(Fluent)
+
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+SaveManager:BuildConfigSection(Tabs.Settings)
+
+-- MAIN TAB - Movement
+local Main = Tabs.Main
+local Section = Main:AddSection("Movement")
+
+-- Infinite Jump variables
+local infiniteJumpEnabled = false
+local infiniteJumpConnection
+
+-- Infinite Jump Button (Toggle)
+Main:AddButton({
+    Title = "Toggle Infinite Jumps",
+    Description = "Enable or Disable Infinite Jump",
+    Callback = function()
+        local Player = game:GetService("Players").LocalPlayer
+        local UIS = game:GetService("UserInputService")
+
+        infiniteJumpEnabled = not infiniteJumpEnabled
+
+        if infiniteJumpEnabled then
+            if not infiniteJumpConnection then
+                infiniteJumpConnection = UIS.JumpRequest:Connect(function()
+                    if infiniteJumpEnabled and Player.Character and Player.Character:FindFirstChildOfClass("Humanoid") then
+                        Player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+                    end
+                end)
+            end
+            print("Infinite Jump Enabled!")
+        else
+            if infiniteJumpConnection then
+                infiniteJumpConnection:Disconnect()
+                infiniteJumpConnection = nil
+            end
+            print("Infinite Jump Disabled!")
+        end
+    end
+})
+
+-- Fly variables
+local flying = false
+local flyConnection
+local bodyGyro
+local bodyVelocity
+
+-- Fly Button (Toggle)
+Main:AddButton({
+    Title = "Toggle Fly",
+    Description = "Enable or Disable fly",
+    Callback = function()
+        local Player = game:GetService("Players").LocalPlayer
+        local Character = Player.Character or Player.CharacterAdded:Wait()
+        local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+        local RunService = game:GetService("RunService")
+        local UIS = game:GetService("UserInputService")
+
+        flying = not flying
+
+        if flying then
+            print("Fly Enabled")
+
+            bodyGyro = Instance.new("BodyGyro")
+            bodyGyro.P = 9e4
+            bodyGyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+            bodyGyro.cframe = HumanoidRootPart.CFrame
+            bodyGyro.Parent = HumanoidRootPart
+
+            bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.velocity = Vector3.new(0, 0, 0)
+            bodyVelocity.maxForce = Vector3.new(9e9, 9e9, 9e9)
+            bodyVelocity.Parent = HumanoidRootPart
+
+            flyConnection = RunService.RenderStepped:Connect(function()
+                local camera = workspace.CurrentCamera
+                local direction = Vector3.new(0, 0, 0)
+
+                if UIS:IsKeyDown(Enum.KeyCode.W) then direction += camera.CFrame.LookVector end
+                if UIS:IsKeyDown(Enum.KeyCode.S) then direction -= camera.CFrame.LookVector end
+                if UIS:IsKeyDown(Enum.KeyCode.A) then direction -= camera.CFrame.RightVector end
+                if UIS:IsKeyDown(Enum.KeyCode.D) then direction += camera.CFrame.RightVector end
+                if UIS:IsKeyDown(Enum.KeyCode.Space) then direction += camera.CFrame.UpVector end
+                if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then direction -= camera.CFrame.UpVector end
+
+                if direction.Magnitude > 0 then
+                    bodyVelocity.velocity = direction.Unit * 50
+                    bodyGyro.cframe = camera.CFrame
+                else
+                    bodyVelocity.velocity = Vector3.new(0, 0, 0)
+                end
+            end)
+        else
+            print("Fly Disabled")
+            if flyConnection then
+                flyConnection:Disconnect()
+                flyConnection = nil
+            end
+            if bodyGyro then
+                bodyGyro:Destroy()
+                bodyGyro = nil
+            end
+            if bodyVelocity then
+                bodyVelocity:Destroy()
+                bodyVelocity = nil
+            end
+        end
+    end
+})
+
+-- WalkSpeed Slider
+Main:AddSlider("WalkSpeedSlider", {
+    Title = "WalkSpeed",
+    Description = "WalkSpeed changer",
+    Default = 16,
+    Min = 16,
+    Max = 300,
+    Rounding = 1,
+    Callback = function(Value)
+        local humanoid = game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = Value
+        end
+    end
+})
+
+-- JumpPower Slider
+Main:AddSlider("JumpPowerSlider", {
+    Title = "Jump Power",
+    Description = "Jump Power changer",
+    Default = 50,
+    Min = 16,
+    Max = 500,
+    Rounding = 1,
+    Callback = function(Value)
+        local humanoid = game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.JumpPower = Value
+        end
+    end
+})
+
+-- Funzione per ottenere la scala R15 attuale (se esiste)
+local function getCurrentR15Scale()
+    local player = game.Players.LocalPlayer
+    local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    if humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 then
+        local scale = humanoid:FindFirstChild("BodyHeightScale")
+        if scale then
+            return scale.Value
+        end
+    end
+    return 1 -- default fallback
+end
+
+-- Funzione per scalare il personaggio (base parts e accessori)
+local function setPlayerScale(value)
+    local player = game.Players.LocalPlayer
+    local char = player.Character or player.CharacterAdded:Wait()
+
+    -- Per ogni parte del personaggio
+    for _, part in pairs(char:GetChildren()) do
+        if part:IsA("BasePart") then
+            -- Ridimensiona part basandosi sulla dimensione originale salvata
+            if not part:FindFirstChild("OriginalSize") then
+                local originalSize = Instance.new("Vector3Value")
+                originalSize.Name = "OriginalSize"
+                originalSize.Value = part.Size
+                originalSize.Parent = part
+            end
+            part.Size = part.OriginalSize.Value * value
+
+        elseif part:IsA("Accessory") and part:FindFirstChild("Handle") then
+            local handle = part.Handle
+            if not handle:FindFirstChild("OriginalSize") then
+                local originalSize = Instance.new("Vector3Value")
+                originalSize.Name = "OriginalSize"
+                originalSize.Value = handle.Size
+                originalSize.Parent = handle
+            end
+            handle.Size = handle.OriginalSize.Value * value
+        end
+    end
+
+    -- Scala HumanoidRootPart hitbox (se esiste)
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    if rootPart then
+        if not rootPart:FindFirstChild("OriginalSize") then
+            local originalSize = Instance.new("Vector3Value")
+            originalSize.Name = "OriginalSize"
+            originalSize.Value = rootPart.Size
+            originalSize.Parent = rootPart
+        end
+        rootPart.Size = rootPart.OriginalSize.Value * value
+    end
+end
+
+-- Variabile per evitare che la scala venga applicata all’avvio
+local scaleInitialized = false
+
+-- Creazione slider con valore default uguale alla scala attuale
+local defaultScale = getCurrentR15Scale()
+
+Main:AddSlider("PlayerSizeSlider", {
+    Title = "Player Size",
+    Description = "Change player size (R15 only)",
+    Default = defaultScale,
+    Min = 1,
+    Max = 5,
+    Rounding = 1,
+    Callback = function(Value)
+        -- Applica la scala solo dopo il primo movimento dello slider
+        if not scaleInitialized then
+            scaleInitialized = true
+            -- Se l’utente non cambia la scala (resta uguale a default) non fare nulla
+            if Value == defaultScale then return end
+        end
+        setPlayerScale(Value)
+    end
+})
+
+-- VISUAL TAB
+local VisualSection = Tabs.Visual:AddSection("Visual")
+
+local espColor = Color3.fromRGB(255, 0, 0)
+local espEnabled = false
+local espConnections = {}
+
+local function createESPForPlayer(player)
+    if player == game.Players.LocalPlayer then return end
+    if not player.Character then return end
+    if not player.Character:FindFirstChild("Head") then return end
+    if player.Character:FindFirstChild("ESP") then return end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ESP"
+    billboard.Adornee = player.Character:FindFirstChild("Head")
+    billboard.Size = UDim2.new(0, 100, 0, 40)
+    billboard.StudsOffset = Vector3.new(0, 2, 0)
+    billboard.AlwaysOnTop = true
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = player.Name
+    label.TextColor3 = espColor
+    label.TextStrokeTransparency = 0
+    label.TextScaled = true
+    label.Font = Enum.Font.SourceSansBold
+    label.Parent = billboard
+
+    billboard.Parent = player.Character
+end
+
+local function enableESP()
+    for _, player in pairs(game.Players:GetPlayers()) do
+        createESPForPlayer(player)
+        table.insert(espConnections, player.CharacterAdded:Connect(function()
+            task.wait(1)
+            createESPForPlayer(player)
+        end))
+    end
+
+    table.insert(espConnections, game.Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function()
+            task.wait(1)
+            createESPForPlayer(player)
+        end)
+    end))
+end
+
+local function disableESP()
+    for _, player in pairs(game.Players:GetPlayers()) do
+        if player.Character and player.Character:FindFirstChild("ESP") then
+            player.Character.ESP:Destroy()
+        end
+    end
+
+    for _, conn in ipairs(espConnections) do
+        conn:Disconnect()
+    end
+    espConnections = {}
+end
+
+-- ESP Toggle Button
+VisualSection:AddButton({
+    Title = "Toggle ESP",
+    Description = "Show player names through walls",
+    Callback = function()
+        espEnabled = not espEnabled
+        if espEnabled then
+            enableESP()
+            print("ESP Enabled")
+        else
+            disableESP()
+            print("ESP Disabled")
+        end
+    end
+})
+
+-- ESP Color Picker
+local Colorpicker = VisualSection:AddColorpicker("ESPColorpicker", {
+    Title = "ESP Color",
+    Description = "Change ESP color",
+    Default = espColor
+})
+
+Colorpicker:OnChanged(function()
+    espColor = Colorpicker.Value
+    print("ESP color changed to:", espColor)
+
+    -- Aggiorna i colori esistenti ESP
+    for _, player in pairs(game.Players:GetPlayers()) do
+        if player.Character and player.Character:FindFirstChild("ESP") then
+            local label = player.Character.ESP:FindFirstChildOfClass("TextLabel")
+            if label then
+                label.TextColor3 = espColor
+            end
+        end
+    end
+end)
+
+-- Variabili per lo spin
+local spinning = false
+local spinSpeed = 1 -- gradi al secondo di default
+local spinConnection
+
+-- Funzione per avviare o fermare lo spin
+local function toggleSpin()
+    local player = game.Players.LocalPlayer
+    local char = player.Character or player.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+
+    spinning = not spinning
+
+    if spinning then
+        print("Spin Enabled")
+        spinConnection = game:GetService("RunService").RenderStepped:Connect(function(deltaTime)
+            -- Ruota HumanoidRootPart attorno all’asse Y
+            hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(spinSpeed * deltaTime), 0)
+        end)
+    else
+        print("Spin Disabled")
+        if spinConnection then
+            spinConnection:Disconnect()
+            spinConnection = nil
+        end
+    end
+end
+
+-- Aggiungo il pulsante per lo spin nella Main tab
+Main:AddButton({
+    Title = "Toggle Spin",
+    Description = "Start or stop the spin",
+    Callback = toggleSpin
+})
+
+-- Slider per regolare la velocità dello spin
+Main:AddSlider("SpinSpeedSlider", {
+    Title = "Spin Speed",
+    Description = "Change the spin speed",
+    Default = spinSpeed,
+    Min = 10,
+    Max = 10000,
+    Rounding = 1,
+    Callback = function(value)
+        spinSpeed = value
+    end
+})
+
+local player = game.Players.LocalPlayer
+local Debris = game:GetService("Debris")
+
+local function spawnColorBlocks()
+    local char = player.Character or player.CharacterAdded:Wait()
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local colors = {
+        Color3.fromRGB(255,0,0),
+        Color3.fromRGB(0,255,0),
+        Color3.fromRGB(0,0,255),
+        Color3.fromRGB(255,255,0),
+        Color3.fromRGB(0,255,255),
+        Color3.fromRGB(255,0,255),
+    }
+
+    for i, color in ipairs(colors) do
+        local part = Instance.new("Part")
+        part.Size = Vector3.new(2,2,2)
+        part.Color = color
+        part.Anchored = true
+        part.CanCollide = false
+        part.Parent = workspace
+
+        local angle = math.rad((i-1) * (360/#colors))
+        local radius = 5
+        local pos = root.Position + Vector3.new(radius * math.cos(angle), 0, radius * math.sin(angle))
+        part.Position = pos + Vector3.new(0, 3, 0)
+
+        Debris:AddItem(part, 10)
+    end
+end
+
+VisualSection:AddButton({
+    Title = "Spawn Color Blocks",
+    Description = "Spawn colorful blocks around you",
+    Callback = function()
+        spawnColorBlocks()
+        print("Color blocks spawned!")
+    end
+})
+
+VisualSection:AddSlider("FOVSlider", {
+    Title = "FOV",
+    Description = "Change the camera's Field of View",
+    Default = workspace.CurrentCamera.FieldOfView,
+    Min = 30,
+    Max = 120,
+    Rounding = 1,
+    Suffix = "°",
+    Callback = function(Value)
+        workspace.CurrentCamera.FieldOfView = Value
+    end
+})
+
+local chamsEnabled = false
+local chamsHighlights = {}
+
+local function enableChams()
+    for _, player in pairs(game.Players:GetPlayers()) do
+        if player ~= game.Players.LocalPlayer and player.Character and not chamsHighlights[player] then
+            local highlight = Instance.new("Highlight")
+            highlight.Adornee = player.Character
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            
+            highlight.FillTransparency = 0.9
+            highlight.OutlineTransparency = 0
+            highlight.FillColor = Color3.new(1,1,1) -- quasi trasparente
+            highlight.OutlineColor = Color3.fromRGB(0, 255, 0) -- contorno verde
+
+            highlight.Parent = player.Character
+            chamsHighlights[player] = highlight
+        end
+    end
+
+    -- Aggiorna per nuovi giocatori e respawn
+    game.Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function()
+            if chamsEnabled then
+                task.wait(1)
+                enableChams()
+            end
+        end)
+    end)
+
+    game.Players.PlayerRemoving:Connect(function(player)
+        if chamsHighlights[player] then
+            chamsHighlights[player]:Destroy()
+            chamsHighlights[player] = nil
+        end
+    end)
+end
+
+local function disableChams()
+    for player, highlight in pairs(chamsHighlights) do
+        if highlight then
+            highlight:Destroy()
+        end
+    end
+    chamsHighlights = {}
+end
+
+VisualSection:AddButton({
+    Title = "Toggle Chams(not fully work)",
+    Description = "Show players through walls",
+    Callback = function()
+        chamsEnabled = not chamsEnabled
+        if chamsEnabled then
+            enableChams()
+            print("Chams Enabled")
+        else
+            disableChams()
+            print("Chams Disabled")
+        end
+    end
+})
